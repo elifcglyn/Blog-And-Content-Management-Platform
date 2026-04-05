@@ -9,6 +9,9 @@ import { NotificationsPage } from "./pages/notifications";
 import { SettingsPage } from "./pages/settings";
 import { AnalyticsPage } from "./pages/analytics"; // 📊 Import edildi
 import { BookmarksPage } from "./pages/bookmarks";   // 🔖 Import edildi
+import { WrappedPage } from "./pages/wrapped";
+
+// Route tanımlarına ekle:
 
 export const router = createBrowserRouter([
   {
@@ -50,6 +53,7 @@ export const router = createBrowserRouter([
         path: "analytics",
         element: <AnalyticsPage />,
       },
+      { path: "/wrapped", element: <WrappedPage /> },
       {
         path: "bookmarks",
         element: <BookmarksPage />,
