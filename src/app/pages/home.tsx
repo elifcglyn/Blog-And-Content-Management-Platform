@@ -1,9 +1,10 @@
-import * as React from "react";
+
 import { Link } from "react-router";
 import { Sparkles, TrendingUp, Clock, ChevronRight } from "lucide-react";
 import { mockPosts } from "../data/mock-data";
 import { PostCard } from "../components/post-card";
 import { BookmarkButton } from "../components/bookmark-button";
+import React, { useState, useEffect } from "react";
 
 // 📌 DEV KATEGORİ LİSTESİ (Gerçek bir platform standartı)
 const CATEGORIES = [
@@ -28,19 +29,46 @@ const CATEGORIES = [
 ];
 
 export function HomePage() {
-  // 🚀 State Yönetimi (Hangi kategori seçili?)
+  // 🚀 State Yönetimi
   const [activeCategory, setActiveCategory] = React.useState("all");
+  const [posts, setPosts] = React.useState<any[]>([]);
 
-  // 🚀 Filtreleme Mantığı (Client-Side Filtering)
+  // 🌐 Veritabanından Veri Çekme ve Formatlama
+  React.useEffect(() => {
+    fetch("http://localhost/Blog-And-Content-Management-Platform/api/yazilari_getir.php")
+      .then((res) => res.json())
+      .then((data) => {
+        const formatliVeri = data.map((item: any) => ({
+          id: item.id.toString(),
+          slug: item.id.toString(),
+          title: item.baslik,
+          excerpt: item.ozet,
+          category: "all",
+          coverImage: item.kapak_resmi || "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&q=80&w=2000",
+          date: item.yayin_tarihi,
+          readTime: "3 min read",
+          author: { name: "Emirhan", avatar: "https://ui-avatars.com/api/?name=Emirhan" }
+        }));
+        setPosts(formatliVeri);
+      })
+      .catch((err) => console.error("Veri çekme hatası:", err));
+  }, []);
+
+  // 🛡️ Güvenlik Ağı: Veri gelene kadar veya hata olursa sahte verileri göster
+  const dataToRender = posts.length > 0 ? posts : mockPosts;
+
+  // 🚀 Filtreleme Mantığı
   const filteredPosts = activeCategory === "all" 
-    ? mockPosts 
-    : mockPosts.filter(post => post.category === activeCategory);
+    ? dataToRender 
+    : dataToRender.filter((post: any) => post.category === activeCategory);
 
   // Filtrelenmiş listeye göre güncel yazılar
   const featuredPost = filteredPosts[0];
   const remainingPosts = filteredPosts.slice(1);
 
+  
   return (
+  
     <div className="flex-1 flex flex-col bg-white dark:bg-slate-950 font-sans overflow-auto animate-in fade-in duration-700">
       
       <main className="container mx-auto max-w-7xl py-12 px-6">

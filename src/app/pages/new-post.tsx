@@ -33,9 +33,9 @@ export function NewPostPage() {
   const [coverImage, setCoverImage] = React.useState<string | null>(null);
   const [title, setTitle] = React.useState("");
   
-  // 🚀 YENİ: Kategori State'i (Varsayılan olarak "yazilim" seçili başlar)
+  // 🚀 Kategori State'i
   const [category, setCategory] = React.useState("yazilim");
-  const [versionNote, setVersionNote] = React.useState(""); // Sürüm notunu da state'e aldık
+  const [versionNote, setVersionNote] = React.useState(""); 
 
   const editor = useEditor({
     extensions: [
@@ -56,23 +56,60 @@ export function NewPostPage() {
         class: 'prose prose-lg max-w-none focus:outline-none min-h-[500px] font-sans p-8 px-12 selection:bg-teal-100 dark:prose-invert',
       },
     },
-  })
+  });
 
-  // 🚀 YENİ: Yayınla Butonuna Basıldığında Backend'e Gidecek Veri Paketi
+  // 🚀 GERÇEK BACKEND BAĞLANTISI: Yayınla Butonuna Basıldığında...
   const handlePublish = () => {
     if (!editor) return;
     
-    const postData = {
-      title: title,
-      content: editor.getHTML(), // Tiptap'tan HTML'i alıyoruz
-      category: category,
-      coverImage: coverImage,
-      versionNote: versionNote,
-      publishedAt: new Date().toISOString()
+    // Metin olan kategorileri veritabanı ID'sine çeviren sözlük
+    const kategoriCevirici: any = {
+      "yazilim": 1,
+      "teknoloji": 2,
+      "bilim": 3,
+      "finans": 4,
+      "saglik": 5,
+      "spor": 6,
+      "yemek": 7,
+      "sanat": 8,
+      "moda": 9
     };
 
-    console.log("🚀 Backend'e Gidecek Veri:", postData);
-    alert(`"${title || 'Başlıksız'}" adlı yazı ${category} kategorisinde başarıyla kaydedildi! (Konsola bak)`);
+    const gercekKategoriId = kategoriCevirici[category] || 1;
+
+    // Veritabanındaki sütun isimlerimize uyumlu paket
+    const veriPaketi = {
+      yazar_id: 1, 
+      kategori_id: gercekKategoriId, 
+      baslik: title,
+      ozet: editor.getText().substring(0, 150) + "...", 
+      icerik: editor.getHTML(),
+      kapak_resmi: coverImage || null 
+    };
+
+    // PHP Servisimize POST isteği
+    fetch("http://localhost/Blog-And-Content-Management-Platform/api/yazi_ekle.php", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(veriPaketi),
+    })
+    .then(response => response.json())
+    .then(data => {
+      if(data.hata) {
+        alert("Hata oluştu: " + data.hata);
+      } else {
+        alert("Harika! Yazın başarıyla veritabanına eklendi.");
+        setTitle("");
+        setCoverImage(null);
+        editor.commands.setContent("<h2>Yeni bir hikaye başlasın...</h2>");
+      }
+    })
+    .catch(error => {
+      console.error("Bağlantı hatası:", error);
+      alert("Sunucuya bağlanılamadı!");
+    });
   };
 
   if (!editor) return null;

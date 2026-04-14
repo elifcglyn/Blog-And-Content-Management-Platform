@@ -1,29 +1,97 @@
 import * as React from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams } from "react-router"; // React-router-dom kullanıyorsanız "react-router-dom" yapın.
 import { 
-  History, ArrowLeft, Calendar, Sparkles, CheckCircle2, 
-  User, Heart, MessageCircle, Share2, UserPlus, Check 
+  History, ArrowLeft, Sparkles, CheckCircle2, 
+  User, Heart, MessageCircle, Share2, Check 
 } from "lucide-react";
-import { mockPosts } from "../data/mock-data"; 
+// mockPosts'u import etmiyoruz çünkü artık gerçek veri kullanacağız!
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
-import { BookmarkButton } from "../components/bookmark-button"; // 🚀 Yeni butonumuz
+import { BookmarkButton } from "../components/bookmark-button";
 
 export function PostDetailPage() {
-  const { slug } = useParams(); 
-  const post = mockPosts.find((p) => p.slug === slug);
+  const { slug } = useParams(); // URL'den tıklanan yazının ID'sini (slug) alıyoruz
+  const [post, setPost] = React.useState<any>(null); // Veritabanından gelecek yazı
+  const [loading, setLoading] = React.useState(true); // Yükleniyor durumu
   
   const [activeVersion, setActiveVersion] = React.useState<any>(null);
   const [isLiked, setIsLiked] = React.useState(false);
-  const [likes, setLikes] = React.useState(142);
+  const [likes, setLikes] = React.useState(0);
   const [isFollowing, setIsFollowing] = React.useState(false);
   const [showComments, setShowComments] = React.useState(false);
+  const [comments, setComments] = React.useState<any[]>([]);
+  const [newComment, setNewComment] = React.useState("");
 
+  // Yorumları Veritabanından Çeken Fonksiyon
+  const yorumlariGetir = () => {
+    if (!post?.id) return;
+    fetch(`http://localhost/Blog-And-Content-Management-Platform/api/yorumlar.php?yazi_id=${post.id}`)
+      .then(res => res.json())
+      .then(data => setComments(data))
+      .catch(err => console.error("Yorum çekme hatası:", err));
+  };
+
+  // Yazı yüklendiğinde yorumları da otomatik getir
   React.useEffect(() => {
-    if (post && post.versions) {
-      const current = post.versions.find((v: any) => v.isCurrent) || post.versions[0];
-      setActiveVersion(current);
-    }
-  }, [post]);
+    yorumlariGetir();
+  }, [post?.id]);
+
+  // 🚀 Yeni Yorum Gönderme Fonksiyonu
+  const yorumGonder = () => {
+    if (!newComment.trim()) return;
+    
+    fetch("http://localhost/Blog-And-Content-Management-Platform/api/yorumlar.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        yazi_id: post.id,
+        kullanici_id: 1, // Şimdilik sen (1 id'li yazar) yorum yapıyor varsayıyoruz
+        icerik: newComment
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      setNewComment(""); // Kutuyu temizle
+      yorumlariGetir(); // Yorumları yenile ki yazdığımız anında ekrana düşsün!
+    });
+  };
+  // 🚀 SAYFA AÇILDIĞINDA PHP'DEN YAZIYI ÇEK
+  React.useEffect(() => {
+    // Tüm yazıları getir (Daha gelişmiş bir sistemde sadece 1 yazıyı getiren bir PHP yazılabilir, şimdilik buradan filtreliyoruz)
+    fetch("http://localhost/Blog-And-Content-Management-Platform/api/yazilari_getir.php")
+      .then((res) => res.json())
+      .then((data) => {
+        // Tıklanan yazıyı (slug ile eşleşen ID'yi) bul
+        const bulunanYazi = data.find((p: any) => p.id.toString() === slug);
+        
+        if (bulunanYazi) {
+          // PHP'den gelen Türkçe veriyi React'ın beklediği İngilizce formata çevir
+          const formatliYazi = {
+            id: bulunanYazi.id.toString(),
+            title: bulunanYazi.baslik,
+            content: bulunanYazi.icerik,
+            category: "Genel", // Kategori isimlerini ID'den çevirmek için daha sonra ayrı bir fonksiyon yazılabilir
+            coverImage: bulunanYazi.kapak_resmi || "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&q=80&w=2000",
+            readingTime: "3",
+            author: { name: "Emirhan", avatar: "https://ui-avatars.com/api/?name=Emirhan" },
+            // Şimdilik sahte bir versiyon geçmişi koyuyoruz (Eğer veritabanına "Sürüm Notu" eklemediysek sayfa çökmesin diye)
+            versions: [
+              { version: "1.0", date: bulunanYazi.yayin_tarihi, changeNote: "İlk yayın", isCurrent: true }
+            ]
+          };
+          setPost(formatliYazi);
+          setActiveVersion(formatliYazi.versions[0]);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Yazı çekilirken hata:", err);
+        setLoading(false);
+      });
+  }, [slug]);
+
+  if (loading) {
+    return <div className="flex-1 flex items-center justify-center min-h-screen"><p>Yükleniyor...</p></div>;
+  }
 
   if (!post) {
     return (
@@ -34,22 +102,10 @@ export function PostDetailPage() {
     );
   }
 
-  const formatContent = (text: string) => {
-    return text.split('\n').map((line) => {
-      if (line.startsWith('# ')) return `<h1 class="text-4xl font-serif italic mt-8 mb-6">${line.slice(2)}</h1>`;
-      if (line.startsWith('## ')) return `<h2 class="text-3xl font-serif italic mt-6 mb-4">${line.slice(3)}</h2>`;
-      if (line.trim() === '') return `<br/>`;
-      return `<p class="mb-4 leading-relaxed">${line}</p>`;
-    }).join('');
-  };
+  // HTML İçeriğini Güvenli ve Temiz Şekilde Basma Fonksiyonu
+  const displayContent = post.content;
 
-  const displayContent = activeVersion?.isCurrent 
-    ? formatContent(post.content)
-    : `<div class="p-6 bg-amber-50/50 border border-amber-200 rounded-2xl mb-8 text-amber-800 text-sm flex flex-col gap-2">
-         <strong class="text-base font-serif italic">⚠️ Eski Sürümü Görüntülüyorsunuz</strong>
-         <span>Şu an v${activeVersion?.version} sürümündesiniz.</span>
-       </div>` + formatContent(post.content).substring(0, 400) + "...";
-
+  
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-slate-950 font-sans min-h-screen">
       
@@ -138,9 +194,62 @@ export function PostDetailPage() {
                 <div className="p-4 rounded-full group-hover:bg-teal-50 transition-colors">
                   <MessageCircle className="w-7 h-7" />
                 </div>
-                <span className="text-lg font-bold">24 Yorum</span>
+                {/* 🚀 YENİ: Sabit 24 yerine gerçek yorum sayısını gösteriyoruz */}
+                <span className="text-lg font-bold">{comments.length} Yorum</span>
               </button>
             </div>
+
+            {/* 💬 GERÇEK YORUM SİSTEMİ BURAYA EKLENDİ */}
+            {showComments && (
+              <div className="py-8 border-t border-slate-100 dark:border-slate-800 animate-in slide-in-from-top-4 duration-500">
+                <h3 className="text-2xl font-serif italic mb-6">Yorumlar ({comments.length})</h3>
+                
+                {/* Yorum Yazma Kutusu */}
+                <div className="flex gap-4 mb-10">
+                  <Avatar className="h-10 w-10"><AvatarImage src="https://ui-avatars.com/api/?name=Emirhan" /></Avatar>
+                  <div className="flex-1 space-y-3">
+                    <textarea 
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Hikaye hakkında ne düşünüyorsun?"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:ring-2 ring-teal-500 outline-none min-h-[100px] resize-y"
+                    />
+                    <div className="flex justify-end">
+                      <button 
+                        onClick={yorumGonder}
+                        disabled={!newComment.trim()}
+                        className="bg-teal-600 text-white font-bold text-xs uppercase tracking-widest px-6 py-3 rounded-full hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                      >
+                        Yorumu Paylaş
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Yorumları Listeleme Alanı */}
+                <div className="space-y-6">
+                  {comments.length > 0 ? (
+                    comments.map((yorum: any) => (
+                      <div key={yorum.id} className="flex gap-4 p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={yorum.avatar_url || `https://ui-avatars.com/api/?name=${yorum.ad_soyad}`} />
+                          <AvatarFallback><User/></AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-slate-900 dark:text-white text-sm">{yorum.ad_soyad}</span>
+                            <span className="text-xs text-slate-400">• {new Date(yorum.tarih).toLocaleDateString('tr-TR')}</span>
+                          </div>
+                          <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">{yorum.icerik}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center text-slate-400 italic py-4">Henüz yorum yapılmamış. İlk yorumu sen yaz!</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* SAĞ TARAF: VERSİYON GEÇMİŞİ */}
