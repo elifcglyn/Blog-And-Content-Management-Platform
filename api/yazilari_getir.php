@@ -1,29 +1,38 @@
 <?php
-// --- EKLENEN SİHİRLİ BÖLÜM (CORS İZİNLERİ) ---
-// Bu kodlar XAMPP'ın, React'ten (localhost:5174) gelen isteklere izin vermesini sağlar
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json; charset=utf-8");
-// ---------------------------------------------
 
-// 1. Önce mutfağın anahtarını alıyoruz (Bir önceki dosyayı buraya dahil ediyoruz)
 require_once 'baglanti.php';
 
 try {
-    // 2. Veritabanına sorumuzu (SQL Query) soruyoruz: 
-    // "posts tablosundaki her şeyi (*) yayın tarihine göre en yeniden eskiye doğru (DESC) getir"
-    $sorgu = $db->prepare("SELECT * FROM posts ORDER BY yayin_tarihi DESC");
-    $sorgu->execute();
+    // Eğer URL'den bir yazar_id gelmişse (Örn: yazilari_getir.php?yazar_id=2)
+    $yazar_id = isset($_GET['yazar_id']) ? $_GET['yazar_id'] : null;
+
+    if ($yazar_id) {
+        // Sadece o yazara ait olanları getir HEM DE yazarın isim ve resmini al (JOIN)
+        $sql = "SELECT posts.*, users.ad_soyad as yazar_adi, users.avatar_url as yazar_avatar 
+                FROM posts 
+                LEFT JOIN users ON posts.yazar_id = users.id 
+                WHERE posts.yazar_id = ? 
+                ORDER BY posts.yayin_tarihi DESC";
+        $sorgu = $db->prepare($sql);
+        $sorgu->execute([$yazar_id]);
+    } else {
+        // Her şeyi getir (Keşfet sayfası gibi yerler için) HEM DE yazarın isim ve resmini al (JOIN)
+        $sql = "SELECT posts.*, users.ad_soyad as yazar_adi, users.avatar_url as yazar_avatar 
+                FROM posts 
+                LEFT JOIN users ON posts.yazar_id = users.id 
+                ORDER BY posts.yayin_tarihi DESC";
+        $sorgu = $db->prepare($sql);
+        $sorgu->execute();
+    }
     
-    // 3. Gelen cevabı PHP'nin anlayacağı bir listeye çeviriyoruz
     $yazilar = $sorgu->fetchAll(PDO::FETCH_ASSOC);
-    
-    // 4. Son olarak bu listeyi React'ın anladığı evrensel dil olan JSON formatına çevirip ekrana basıyoruz
     echo json_encode($yazilar);
 
 } catch (PDOException $e) {
-    // Bir hata olursa hatayı JSON olarak göster
     echo json_encode(["hata" => "Yazılar getirilirken bir sorun oluştu: " . $e->getMessage()]);
 }
 ?>

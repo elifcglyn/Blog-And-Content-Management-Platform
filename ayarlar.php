@@ -1,6 +1,20 @@
 <?php 
-  $activePage = 'ayarlar'; // Profil/Ayarlar menüsü aktif olur
-  $pageTitle = 'Hesap Ayarları';
+session_start();
+require_once 'api/baglanti.php';
+
+// Güvenlik: Giriş yapmayan giremez
+if (!isset($_SESSION['kullanici_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+// Veritabanından en güncel bilgileri çekiyoruz (Yedek olarak Session'dan da besleniyoruz)
+$sorgu = $db->prepare("SELECT email, username, ad_soyad, avatar_url FROM users WHERE id = ?");
+$sorgu->execute([$_SESSION['kullanici_id']]);
+$user = $sorgu->fetch(PDO::FETCH_ASSOC);
+
+$activePage = 'ayarlar'; 
+$pageTitle = 'Hesap Ayarları';
 ?>
 <!DOCTYPE html>
 <html lang="tr">
@@ -9,61 +23,38 @@
     <title><?= $pageTitle ?> - Postify</title>
 
     <style>
-        /* Satır Tasarımları */
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+        
+        body { background-color: #fff; }
         .settings-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            padding-bottom: 2rem;
-            margin-bottom: 2rem;
-            border-bottom: 1px solid #f8fafc;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding-bottom: 2rem; margin-bottom: 2rem; border-bottom: 1px solid #f8fafc;
         }
-
-        /* Minimalist Inputlar */
         .clean-input {
-            width: 100%;
-            background-color: #f8fafc;
-            border: none;
-            border-radius: 0.5rem;
-            padding: 0.5rem 0.75rem;
-            font-size: 0.875rem;
-            color: #0f172a;
-            outline: none;
-            transition: box-shadow 0.2s;
+            width: 100%; background-color: #f8fafc; border: none;
+            border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-size: 0.875rem;
+            color: #0f172a; outline: none; transition: all 0.2s;
         }
-        .clean-input:focus {
-            box-shadow: 0 0 0 2px #0d9488;
-        }
-
-        /* Buton Stilleri */
-        .action-btn {
-            background: transparent;
-            border: none;
-            font-size: 0.875rem;
-            font-weight: 500;
-            padding: 0;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
+        .clean-input:focus { box-shadow: 0 0 0 2px #0d9488; background-color: #fff; }
+        
+        .action-btn { background: transparent; border: none; font-size: 0.875rem; font-weight: 500; cursor: pointer; }
         .btn-edit { color: #1e293b; }
-        .btn-edit:hover { color: #000; }
-        
         .btn-save { color: #0d9488; font-weight: bold; margin-right: 0.75rem; }
-        .btn-save:hover { color: #0f766e; }
-        
         .btn-cancel { color: #94a3b8; }
-        .btn-cancel:hover { color: #475569; }
-
-        .btn-danger-link { color: #dc2626; text-decoration: none; font-weight: 500; font-size: 0.875rem; display: block; margin-bottom: 1.5rem; }
-        .btn-danger-link:hover { color: #b91c1c; }
-
-        /* Profil Avatar */
-        .avatar-sm {
-            width: 40px; height: 40px; border-radius: 50%;
-            object-fit: cover; border: 2px solid #f1f5f9;
+        
+        .avatar-wrapper {
+            position: relative; width: 45px; height: 45px; cursor: pointer;
             transition: transform 0.2s;
         }
-        .profile-link:hover .avatar-sm { transform: scale(1.05); }
+        .avatar-wrapper:hover { transform: scale(1.1); }
+        .avatar-main { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid #f1f5f9; }
+        .camera-icon {
+            position: absolute; bottom: -2px; right: -2px;
+            background: #0d9488; color: white; width: 18px; height: 18px;
+            border-radius: 50%; font-size: 10px; display: flex; align-items: center; justify-content: center;
+            border: 2px solid white;
+        }
+        .btn-danger-link { color: #dc2626; text-decoration: none; font-weight: 500; font-size: 0.875rem; display: block; margin-top: 1rem; }
     </style>
 </head>
 <body>
@@ -80,23 +71,19 @@
                 <div class="px-4 px-md-5 pb-5 d-flex justify-content-center">
                     <div style="max-width: 768px; width: 100%;">
                         
-                        <h1 class="fw-bold text-dark mb-5 pb-3" style="font-size: 3rem; letter-spacing: -1px;">Settings</h1>
+                        <h1 class="fw-bold text-dark mb-5 pb-3" style="font-size: 3.5rem; letter-spacing: -2px; font-family: 'Instrument Serif', serif; font-style: italic;">Settings</h1>
 
                         <div>
-                            
                             <div class="settings-row">
                                 <div class="flex-grow-1">
                                     <p class="fw-bold text-dark mb-1" style="font-size: 0.875rem;">Email address</p>
-                                    
                                     <div id="email-display">
-                                        <p class="text-secondary mb-0" style="font-size: 0.875rem;" id="email-text">elifalanur7@gmail.com</p>
+                                        <p class="text-secondary mb-0" style="font-size: 0.875rem;" id="email-text"><?= htmlspecialchars($user['email']) ?></p>
                                     </div>
-                                    
                                     <div id="email-input-container" class="d-none mt-2">
-                                        <input type="email" id="email-input" class="clean-input" value="elifalanur7@gmail.com">
+                                        <input type="email" id="email-input" class="clean-input" value="<?= htmlspecialchars($user['email']) ?>">
                                     </div>
                                 </div>
-                                
                                 <div class="ms-4">
                                     <button id="email-edit-btn" class="action-btn btn-edit" onclick="toggleEdit('email', true)">Edit</button>
                                     <div id="email-action-btns" class="d-none">
@@ -109,19 +96,16 @@
                             <div class="settings-row">
                                 <div class="flex-grow-1">
                                     <p class="fw-bold text-dark mb-1" style="font-size: 0.875rem;">Username and subdomain</p>
-                                    
                                     <div id="username-display">
-                                        <p class="text-secondary mb-0" style="font-size: 0.875rem;" id="username-text">@elifcaglayan</p>
+                                        <p class="text-secondary mb-0" style="font-size: 0.875rem;" id="username-text">@<?= htmlspecialchars($user['username']) ?></p>
                                     </div>
-                                    
                                     <div id="username-input-container" class="d-none mt-2">
-                                        <div class="d-flex align-items-center clean-input" style="padding: 0 0.75rem;">
-                                            <span class="text-muted" style="font-size: 0.875rem;">@</span>
-                                            <input type="text" id="username-input" class="border-0 bg-transparent flex-grow-1 py-2 ms-1" style="font-size: 0.875rem; box-shadow: none; outline: none;" value="elifcaglayan">
+                                        <div class="d-flex align-items-center clean-input">
+                                            <span class="text-muted small">@</span>
+                                            <input type="text" id="username-input" class="border-0 bg-transparent flex-grow-1 ms-1 small" style="outline:none;" value="<?= htmlspecialchars($user['username']) ?>">
                                         </div>
                                     </div>
                                 </div>
-                                
                                 <div class="ms-4">
                                     <button id="username-edit-btn" class="action-btn btn-edit" onclick="toggleEdit('username', true)">Edit</button>
                                     <div id="username-action-btns" class="d-none">
@@ -136,26 +120,24 @@
                                     <p class="fw-bold text-dark mb-1" style="font-size: 0.875rem;">Profile information</p>
                                     <p class="text-secondary mb-0" style="font-size: 0.875rem;">Edit your photo, name, and bio</p>
                                 </div>
-                                <a href="profil.php" class="text-decoration-none d-flex align-items-center gap-3 profile-link">
-                                    <span class="text-secondary fw-medium" style="font-size: 0.875rem; transition: color 0.3s;">Elif Çağlayan</span>
-                                    <img src="https://ui-avatars.com/api/?name=Elif+Caglayan&background=f97316&color=fff" class="avatar-sm">
-                                </a>
+                                <div class="d-flex align-items-center gap-3">
+                                    <span class="text-secondary fw-medium small d-none d-sm-block"><?= htmlspecialchars($user['ad_soyad']) ?></span>
+                                    
+                                    <div class="avatar-wrapper" onclick="document.getElementById('avatar-upload').click();">
+                                        <?php 
+                                            $avatar = !empty($user['avatar_url']) ? $user['avatar_url'] : "https://ui-avatars.com/api/?name=".urlencode($user['ad_soyad'])."&background=0d9488&color=fff";
+                                        ?>
+                                        <img src="<?= $avatar ?>" class="avatar-main" id="current-avatar">
+                                        <div class="camera-icon"><i class="fa-solid fa-camera"></i></div>
+                                    </div>
+                                    <input type="file" id="avatar-upload" class="d-none" accept="image/*" onchange="uploadAvatar(this)">
+                                </div>
                             </div>
 
                             <div class="pt-2">
-                                <div class="d-flex justify-content-between align-items-center mb-4 cursor-pointer" style="cursor: pointer;">
-                                    <p class="text-dark fw-medium mb-0" style="font-size: 0.875rem;">Profile design</p>
-                                    <i class="fa-solid fa-arrow-up-right-from-square text-muted" style="font-size: 0.75rem;"></i>
-                                </div>
-
-                                <div class="d-flex justify-content-between align-items-center mb-5 cursor-pointer" style="cursor: pointer;">
-                                    <p class="text-dark fw-medium mb-0" style="font-size: 0.875rem;">Custom domain</p>
-                                    <p class="text-muted mb-0" style="font-size: 0.875rem;">None</p>
-                                </div>
-
                                 <div class="pt-4 border-top">
-                                    <a href="#" class="text-decoration-none fw-medium d-block mb-3" style="color: #0d9488; font-size: 0.875rem;">Deactivate account</a>
-                                    <a href="#" class="btn-danger-link">Delete account</a>
+                                    <button onclick="accountAction('deactivate')" class="action-btn text-teal fw-bold d-block mb-3 p-0" style="font-size: 0.875rem;">Deactivate account</button>
+                                    <button onclick="accountAction('delete')" class="action-btn btn-danger-link p-0">Delete account</button>
                                 </div>
                             </div>
 
@@ -173,61 +155,81 @@
     </div>
 
     <script>
-        // Ders 4: Nesne (Object) kullanımı
-        let userData = {
-            email: "elifalanur7@gmail.com",
-            username: "elifcaglayan"
+        let currentData = {
+            email: "<?= $user['email'] ?>",
+            username: "<?= $user['username'] ?>"
         };
 
-        // Ders 5: DOM Manipülasyonu ile Görünüm Değiştirme (React State yerine)
         function toggleEdit(field, isEditing) {
-            const displayEl = document.getElementById(field + '-display');
-            const inputContainer = document.getElementById(field + '-input-container');
-            const editBtn = document.getElementById(field + '-edit-btn');
-            const actionBtns = document.getElementById(field + '-action-btns');
-            const inputEl = document.getElementById(field + '-input');
-
-            if (isEditing) {
-                displayEl.classList.add('d-none');
-                inputContainer.classList.remove('d-none');
-                editBtn.classList.add('d-none');
-                actionBtns.classList.remove('d-none');
-                setTimeout(() => inputEl.focus(), 50);
-            } else {
-                displayEl.classList.remove('d-none');
-                inputContainer.classList.add('d-none');
-                editBtn.classList.remove('d-none');
-                actionBtns.classList.add('d-none');
-                inputEl.value = userData[field];
-            }
+            document.getElementById(field + '-display').classList.toggle('d-none', isEditing);
+            document.getElementById(field + '-input-container').classList.toggle('d-none', !isEditing);
+            document.getElementById(field + '-edit-btn').classList.toggle('d-none', isEditing);
+            document.getElementById(field + '-action-btns').classList.toggle('d-none', !isEditing);
+            if(isEditing) document.getElementById(field + '-input').focus();
         }
 
-        // Ders 8: Form/Veri Kaydetme (Gerçekte PHP'ye POST atar)
+        // BİLGİLERİ KAYDET (Email/Username)
         function saveField(field) {
             const newValue = document.getElementById(field + '-input').value;
-            const textDisplay = document.getElementById(field + '-text');
-
-            if (!newValue.trim()) {
-                alert("Bu alan boş bırakılamaz!");
-                return;
-            }
-
-            userData[field] = newValue;
-
-            if (field === 'username') {
-                textDisplay.innerText = "@" + newValue;
-            } else {
-                textDisplay.innerText = newValue;
-            }
-
-            toggleEdit(field, false);
+            
+            fetch('api/profil_guncelle.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: `field=${field}&value=${encodeURIComponent(newValue)}`
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    currentData[field] = newValue;
+                    document.getElementById(field + '-text').innerText = (field === 'username' ? '@' : '') + newValue;
+                    toggleEdit(field, false);
+                } else {
+                    alert('Hata: ' + data.message);
+                }
+            });
         }
 
-        // Ortak Sidebar Scripti
-        if(document.getElementById('sidebarToggleBtn')) {
-            document.getElementById('sidebarToggleBtn').addEventListener('click', () => {
-                document.getElementById('mainSidebar').classList.toggle('collapsed');
-            });
+        // PROFİL RESMİ YÜKLEME
+        function uploadAvatar(input) {
+            if (input.files && input.files[0]) {
+                let formData = new FormData();
+                formData.append('avatar', input.files[0]);
+
+                fetch('api/avatar_yukle.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.status === 'success') {
+                        document.getElementById('current-avatar').src = data.new_url;
+                        // Üst bardaki resmi de hemen güncelle
+                        const topbarAvatar = document.querySelector('header img');
+                        if(topbarAvatar) topbarAvatar.src = data.new_url;
+                    } else {
+                        alert('Resim yüklenemedi: ' + data.message);
+                    }
+                });
+            }
+        }
+
+        // HESAP İŞLEMLERİ
+        function accountAction(type) {
+            let msg = type === 'delete' ? 'DİKKAT! Hesabınızı kalıcı olarak silmek üzeresiniz. Bu işlem geri alınamaz. Onaylıyor musunuz?' : 'Hesabınızı dondurmak istediğinize emin misiniz?';
+            if(confirm(msg)) {
+                fetch('api/hesap_islemleri.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: `action=${type}`
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.status === 'success') {
+                        alert('İşlem başarılı. Hoşça kalın!');
+                        window.location.href = 'logout.php';
+                    }
+                });
+            }
         }
     </script>
 </body>

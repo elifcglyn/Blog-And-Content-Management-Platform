@@ -2,6 +2,11 @@
   $activePage = 'kesfet'; // Sidebar'da Keşfet linki aktif olur
   $pageTitle = 'Keşfet'; 
 ?>
+<?php
+session_start();
+require_once 'auth.php'; // Giriş kontrolü yapan dosyan
+require_once 'api/baglanti.php';
+?>
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -219,7 +224,7 @@
             }
 
             filtrelenmis.forEach(yazi => {
-                const tarih = new Date(yazi.olusturulma_tarihi).toLocaleDateString('tr-TR');
+                const tarih = new Date(yazi.yayin_tarihi).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
                 alan.innerHTML += `
                     <div class="col-md-6 col-lg-4">
                         <div class="explore-card p-4 d-flex flex-column" onclick="window.location.href='detay.php?id=${yazi.id}'">

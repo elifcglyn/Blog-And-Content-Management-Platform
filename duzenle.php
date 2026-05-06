@@ -2,6 +2,11 @@
   $activePage = 'yazilarim'; 
   $pageTitle = 'Yazıyı Düzenle'; 
 ?>
+<?php
+session_start();
+require_once 'auth.php'; // Giriş kontrolü yapan dosyan
+require_once 'api/baglanti.php';
+?>
 <!DOCTYPE html>
 <html lang="tr">
 <head>

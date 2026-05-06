@@ -2,6 +2,11 @@
   $activePage = 'analiz'; // Sidebar'da 'İstatistikler' kısmını koyu (aktif) yapar
   $pageTitle = 'Performans Analizi';  // Topbar'da yazacak başlık
 ?>
+<?php
+session_start();
+require_once 'auth.php'; // Giriş kontrolü yapan dosyan
+require_once 'api/baglanti.php';
+?>
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -9,6 +14,9 @@
     <title><?= $pageTitle ?> - Postify</title>
 
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+        .serif-italic { font-family: 'Instrument Serif', serif; font-style: italic; }
+
         /* Modern Yuvarlak Hatlı Kartlar */
         .modern-card {
             background-color: #f8fafc;
@@ -96,13 +104,13 @@
 
                 <div class="px-4 px-md-5 pb-5">
                     
-                    <header class="mb-5">
+                    <div class="pt-2 pb-5">
                         <div class="text-teal fw-bold text-uppercase mb-3" style="font-size: 0.7rem; letter-spacing: 2px;">
                             <i class="fa-solid fa-chart-simple me-1"></i> Analiz Paneli
                         </div>
-                        <h1 class="serif-italic fs-1 fw-bold text-dark mb-2" style="line-height: 1;">Performans Analizi</h1>
-                        <p class="text-secondary fw-light fs-5">Yazılarının ve etkileşimlerinin anlık raporu.</p>
-                    </header>
+                        <h1 class="serif-italic fw-bold text-dark mb-0" style="font-size: 3.8rem; letter-spacing: -1.5px; line-height: 0.9;">Performans Analizi</h1>
+                        <p class="text-secondary mt-3 mb-0 fs-5">Yazılarının ve etkileşimlerinin anlık raporu.</p>
+                    </div>
 
                     <div id="yukleniyor" class="text-center py-5">
                         <div class="spinner-border text-teal" role="status"></div>
@@ -156,37 +164,36 @@
         function verileriCanliCek() {
             fetch('api/yazilari_getir.php')
                 .then(res => res.json())
-                .then(yazilar => {
+                .then(data => {
                     document.getElementById('yukleniyor').classList.add('d-none');
                     document.getElementById('analiz-icerik').classList.remove('d-none');
+                    
+                    // SADECE GİRİŞ YAPAN KULLANICININ YAZILARINI FİLTRELE (Test hesabı sorunu çözümü)
+                    const aktifKullaniciId = <?= json_encode($_SESSION['kullanici_id'] ?? 0) ?>;
+                    const yazilar = data.filter(post => post.yazar_id == aktifKullaniciId || post.kullanici_id == aktifKullaniciId);
                     
                     let toplamGoruntulenme = 0;
                     let toplamBegeni = 0;
                     let toplamKelimeSayisi = 0;
 
-                    // 1. GERÇEK VERİLERİ DÖNGÜ İLE TOPLA
                     yazilar.forEach(post => {
-                        // Eğer DB'de bu sütunlar yoksa veya null ise 0 kabul et
                         toplamGoruntulenme += parseInt(post.okunma_sayisi) || 0;
                         toplamBegeni += parseInt(post.begeni_sayisi) || 0;
                         
-                        // İçerikteki HTML etiketlerini temizle ve kelime sayısını bul
                         if (post.icerik) {
                             let safMetin = post.icerik.replace(/<[^>]+>/g, '');
                             toplamKelimeSayisi += safMetin.split(/\s+/).length;
                         }
                     });
 
-                    // 2. GERÇEK OKUMA SÜRESİ HESAPLAMA (Dakikada ortalama 200 kelime okunur)
                     let toplamOkumaSuresi = Math.ceil(toplamKelimeSayisi / 200); 
-                    if(toplamOkumaSuresi === 0 && yazilar.length > 0) toplamOkumaSuresi = 1; // En az 1 dk
+                    if(toplamOkumaSuresi === 0 && yazilar.length > 0) toplamOkumaSuresi = 1; 
 
                     const toplamYazi = yazilar.length;
 
-                    // Arayüze Bas
                     kartlariDoldur(toplamGoruntulenme, toplamOkumaSuresi, toplamYazi, toplamBegeni);
                     populerYazilariCiz(yazilar, toplamGoruntulenme);
-                    trendGrafigiCiz(); // Not: Trend grafiği günlük kayıt gerektirir, şimdilik görsel kalabilir.
+                    trendGrafigiCiz(); 
                 })
                 .catch(err => {
                     console.error("Veri çekme hatası:", err);
@@ -232,23 +239,20 @@
                 return;
             }
 
-            // GERÇEK SIRALAMA: Yazıları 'okunma_sayisi' değerine göre büyükten küçüğe sırala
             const siraliYazilar = yazilar.sort((a, b) => {
                 let okunmaA = parseInt(a.okunma_sayisi) || 0;
                 let okunmaB = parseInt(b.okunma_sayisi) || 0;
                 return okunmaB - okunmaA; 
             });
 
-            // Sadece en iyi 3 tanesini al
             const enIyi3Yazi = siraliYazilar.slice(0, 3);
 
             enIyi3Yazi.forEach((post) => {
                 let kisaBaslik = post.baslik.length > 22 ? post.baslik.substring(0, 22) + "..." : post.baslik;
                 let okunma = parseInt(post.okunma_sayisi) || 0;
                 
-                // Yüzdelik barı, o yazının toplam görüntülenmeye oranına göre gerçekçi hesapla
                 let yuzde = genelToplamGoruntulenme > 0 ? Math.round((okunma / genelToplamGoruntulenme) * 100) : 0;
-                if(yuzde < 5 && okunma > 0) yuzde = 5; // Çok ufak görünmemesi için min %5 bar
+                if(yuzde < 5 && okunma > 0) yuzde = 5; 
                 
                 alan.innerHTML += `
                     <div>
@@ -271,8 +275,6 @@
         }
 
         function trendGrafigiCiz() {
-            // Trend grafiği günlük veritabanı logu (kaydı) gerektirdiği için 
-            // sunum esnasında arayüzün boş kalmaması adına temsili gösterilir.
             const haftalikTrend = [
                 { gun: 'Pzt', oran: 30 }, { gun: 'Sal', oran: 45 }, 
                 { gun: 'Çar', oran: 35 }, { gun: 'Per', oran: 60 }, 
