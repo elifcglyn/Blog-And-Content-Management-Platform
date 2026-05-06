@@ -1,5 +1,6 @@
 <?php 
-  require_once 'auth.php'; // Giriş kontrolü şart!
+  // Sunucu taraflı oturum kontrolü. Giriş yapmayanlar bu sayfayı göremez (Ders 08: Session)
+  require_once 'auth.php'; 
   require_once 'api/baglanti.php';
 
   $activePage = 'yeni-yazi'; 
@@ -8,7 +9,10 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+    <!-- Tekrar eden kodları önlemek için header dosyasını dahil ediyoruz (Ders 08: include/require) -->
     <?php include 'header_include.php'; ?>
+    
+    <!-- Metin editörü (Quill.js) için gerekli dış CSS dosyası -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <title><?= $pageTitle ?> - Postify</title>
 
@@ -16,7 +20,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
         .serif-italic { font-family: 'Instrument Serif', serif; font-style: italic; }
         
-        /* Kapak Fotoğrafı Alanı */
+        /* Kapak Fotoğrafı Yükleme Alanı Tasarımı */
         .cover-area {
             aspect-ratio: 21/9; background-color: #f8fafc; border: 2px dashed #e2e8f0;
             border-radius: 2rem; display: flex; align-items: center; justify-content: center;
@@ -24,6 +28,8 @@
         }
         .cover-area:hover { border-color: #0d9488; }
         .cover-area img { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Resmin üzerine gelince çıkacak olan değiştir/sil butonları için overlay (katman) */
         .cover-overlay {
             position: absolute; inset: 0; background: rgba(15, 23, 42, 0.6);
             display: flex; gap: 10px; align-items: center; justify-content: center;
@@ -31,6 +37,7 @@
         }
         .cover-area:hover .cover-overlay { opacity: 1; }
 
+        /* Modern, çerçevesiz başlık input tasarımı */
         .title-input {
             border: none; outline: none; box-shadow: none;
             font-size: 3rem; padding: 0; background: transparent;
@@ -38,6 +45,7 @@
         }
         .title-input::placeholder { color: #cbd5e1; }
 
+        /* Quill Editörünün kendi tasarımını ezip sitemize uydurduğumuz kısım */
         .editor-wrapper { border: 1px solid #f1f5f9; border-radius: 1.5rem; background: white; overflow: hidden; }
         .ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid #f1f5f9 !important; padding: 15px; }
         .ql-container.ql-snow { border: none !important; min-height: 400px; font-size: 1.15rem; }
@@ -47,9 +55,11 @@
 
     <div class="container-fluid p-0">
         <div class="d-flex flex-nowrap min-vh-100">
+            <!-- Yan menüyü çekiyoruz -->
             <?php include 'sidebar.php'; ?>
 
             <main class="flex-grow-1" style="min-width: 0; background-color: #fff;">
+                <!-- Üst menüyü çekiyoruz -->
                 <?php include 'topbar.php'; ?>
 
                 <div class="px-4 px-md-5 pb-5 d-flex justify-content-center">
@@ -66,6 +76,7 @@
                                 <button class="btn btn-outline-dark rounded-pill px-3 fw-bold btn-sm" onclick="alert('Ön izleme yakında!')">
                                     <i class="fa-regular fa-eye me-1"></i> Ön İzleme
                                 </button>
+                                <!-- Form submit yerine onclick event'i ile JavaScript üzerinden veriyi yolluyoruz -->
                                 <button id="btn-yayinla" class="btn text-white rounded-pill px-4 fw-bold btn-sm" style="background-color: #0d9488;" onclick="yaziyiYayinla()">
                                     <i class="fa-solid fa-paper-plane me-1"></i> Yayınla
                                 </button>
@@ -74,7 +85,9 @@
 
                         <div class="row g-4">
                             <div class="col-lg-8">
+                                <!-- Dosya yükleme inputu gizli (d-none), kapak alanına tıklanınca JS ile tetikleniyor -->
                                 <input type="file" id="kapak-input" accept="image/*" class="d-none" onchange="kapakResmiYukle(event)">
+                                
                                 <div class="cover-area mb-4 shadow-sm" id="kapak-alani" onclick="document.getElementById('kapak-input').click()">
                                     <div class="text-center text-muted" id="kapak-placeholder">
                                         <i class="fa-solid fa-image fa-2x mb-2" style="color: #cbd5e1;"></i>
@@ -88,6 +101,7 @@
 
                                 <input type="text" id="baslik" class="title-input mb-4 serif-italic" placeholder="Buraya etkileyici bir başlık yaz...">
 
+                                <!-- Zengin metin editörü (WYSIWYG) için gerekli HTML iskeleti -->
                                 <div class="editor-wrapper shadow-sm">
                                     <div id="toolbar">
                                         <button class="ql-bold"></button>
@@ -127,31 +141,42 @@
         </div>
     </div>
 
+    <!-- Quill Editor kütüphanesini çekiyoruz -->
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
     <script>
-        // Giriş yapan kullanıcının ID'sini PHP'den alıyoruz (Sihirli dokunuş!)
-        const GERCEK_KULLANICI_ID = <?= $_SESSION['kullanici_id'] ?>;
+        // Slaytlardaki gibi JS standartlarına (var) döndük.
+        // Oturum açan kullanıcının ID'sini PHP'den dinamik olarak JavaScript'e aktarıyoruz.
+        var GERCEK_KULLANICI_ID = <?= $_SESSION['kullanici_id'] ?>;
 
+        // Editörü başlatıyoruz
         var quill = new Quill('#editor-container', {
             modules: { toolbar: '#toolbar' },
             placeholder: 'Anlatacakların dünyayı değiştirebilir...',
             theme: 'snow'
         });
 
-        let base64Kapak = null;
+        // Kapak resmini sunucuya yollamadan önce Base64 formatına çevirip burada tutacağız.
+        var base64Kapak = null;
 
+        // Dosya seçildiğinde çalışacak fonksiyon (FileReader kullanımı)
         function kapakResmiYukle(event) {
-            const file = event.target.files[0];
+            var file = event.target.files[0];
             if (file) {
-                const reader = new FileReader();
+                var reader = new FileReader();
                 reader.onload = function(e) {
                     base64Kapak = e.target.result;
-                    const kapakAlani = document.getElementById('kapak-alani');
-                    document.getElementById('kapak-placeholder').style.display = 'none';
-                    document.getElementById('kapak-butonlar').style.display = 'flex';
-                    const eskiResim = kapakAlani.querySelector('img');
-                    if(eskiResim) eskiResim.remove();
-                    const img = document.createElement('img');
+                    
+                    // DOM manipülasyonu ile önyüzü güncelliyoruz
+                    var kapakAlani = document.getElementById("kapak-alani");
+                    document.getElementById("kapak-placeholder").style.display = "none";
+                    document.getElementById("kapak-butonlar").style.display = "flex";
+                    
+                    var eskiResim = kapakAlani.querySelector("img");
+                    if(eskiResim) {
+                        eskiResim.remove();
+                    }
+                    
+                    var img = document.createElement("img");
                     img.src = base64Kapak;
                     kapakAlani.insertBefore(img, kapakAlani.firstChild);
                 };
@@ -159,62 +184,90 @@
             }
         }
 
+        // Resmi kaldırmak için DOM ve değişken temizliği yapıyoruz
         function resmiSil() {
             base64Kapak = null;
-            document.getElementById('kapak-placeholder').style.display = 'block';
-            document.getElementById('kapak-butonlar').style.display = 'none';
-            const img = document.getElementById('kapak-alani').querySelector('img');
-            if(img) img.remove();
+            document.getElementById("kapak-placeholder").style.display = "block";
+            document.getElementById("kapak-butonlar").style.display = "none";
+            var img = document.getElementById("kapak-alani").querySelector("img");
+            if(img) {
+                img.remove();
+            }
+            document.getElementById("kapak-input").value = "";
         }
 
+        // Yayınla butonuna basıldığında tüm verileri toplayıp AJAX ile sunucuya yollayan fonksiyon
         function yaziyiYayinla() {
-            const baslik = document.getElementById('baslik').value.trim();
-            const icerikHTML = quill.root.innerHTML;
-            const safMetin = quill.getText();
-            const kategoriId = document.getElementById('kategori').value;
+            // Form elemanlarının değerlerini DOM üzerinden yakalıyoruz
+            var baslik = document.getElementById("baslik").value.trim();
+            var icerikHTML = quill.root.innerHTML;
+            var safMetin = quill.getText();
+            var kategoriId = document.getElementById("kategori").value;
+            
+            // Yazar notu boşsa varsayılan bir metin atıyoruz (Github Version Control mantığı)
+            var surumNotu = document.getElementById("surum-notu").value.trim();
+            if (surumNotu === "") {
+                surumNotu = "v1.0 - İlk Yayın";
+            }
 
-            if (!baslik) { alert("Hikayene bir başlık koymalısın!"); return; }
-            if (safMetin.length < 10) { alert("Hikayen biraz kısa kalmadı mı?"); return; }
+            // Basit Form Doğrulaması (Validation)
+            if (baslik === "") { 
+                alert("Hikayene bir başlık koymalısın!"); 
+                return; 
+            }
+            if (safMetin.length < 10) { 
+                alert("Hikayen biraz kısa kalmadı mı?"); 
+                return; 
+            }
 
-            // Loading durumu
-            const btn = document.getElementById('btn-yayinla');
+            // Butonu kilitle ve yükleniyor efekti ver (UX için)
+            var btn = document.getElementById("btn-yayinla");
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Yayınlanıyor...';
+            btn.innerHTML = "<span class='spinner-border spinner-border-sm me-2'></span>Yayınlanıyor...";
 
-            // Okunma süresi hesabı
-            const kelimeSayisi = safMetin.trim().split(/\s+/).length;
-            const okunmaSuresi = Math.ceil(kelimeSayisi / 200) || 1;
+            // Kelime sayısına göre tahmini okunma süresi hesaplama
+            var kelimeSayisi = safMetin.trim().split(/\s+/).length;
+            var okunmaSuresi = Math.ceil(kelimeSayisi / 200);
+            if (okunmaSuresi < 1) {
+                okunmaSuresi = 1;
+            }
 
-            const veriPaketi = {
-                yazar_id: GERCEK_KULLANICI_ID, // ARTIK SENİN ID'N!
+            // API'ye gönderilecek JSON formatındaki veri paketi nesnesi (Object)
+            var veriPaketi = {
+                yazar_id: GERCEK_KULLANICI_ID, 
                 kategori_id: parseInt(kategoriId),
                 baslik: baslik,
                 ozet: safMetin.substring(0, 160) + "...",
                 icerik: icerikHTML,
                 kapak_resmi: base64Kapak,
-                okunma_suresi: okunmaSuresi
+                okunma_suresi: okunmaSuresi,
+                degisiklik_notu: surumNotu 
             };
 
+            // AJAX (fetch) kullanarak veriyi arka planda sunucuya (POST) gönderiyoruz
             fetch("api/yazi_ekle.php", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(veriPaketi),
+                body: JSON.stringify(veriPaketi)
             })
-            .then(res => res.json())
-            .then(data => {
+            .then(function(res) {
+                return res.json();
+            })
+            .then(function(data) {
                 if(data.hata) {
                     alert("Eyvah bir hata: " + data.hata);
                     btn.disabled = false;
-                    btn.innerHTML = "Yayınla";
+                    btn.innerHTML = "<i class='fa-solid fa-paper-plane me-1'></i> Yayınla";
                 } else {
-                    alert("Tebrikler Elif! Yazın başarıyla yayınlandı. 🚀");
-                    window.location.href = "profil.php"; // Doğrudan profile git ki görebil elini!
+                    alert("Tebrikler ! Yazın başarıyla yayınlandı. 🚀");
+                    window.location.href = "profil.php"; // İşlem bitince yönlendirme
                 }
             })
-            .catch(err => {
+            .catch(function(err) {
                 console.error(err);
                 alert("Bağlantı koptu!");
                 btn.disabled = false;
+                btn.innerHTML = "<i class='fa-solid fa-paper-plane me-1'></i> Yayınla";
             });
         }
     </script>

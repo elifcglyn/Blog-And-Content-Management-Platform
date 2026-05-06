@@ -1,14 +1,17 @@
 <?php 
+// Oturum (Session) işlemlerini başlatıyoruz. (Ders 08)
 session_start();
 require_once 'api/baglanti.php';
 
-// Güvenlik: Giriş yapmayan giremez
+// GÜVENLİK DUVARI: Eğer oturum açılmış bir kullanıcı yoksa (kullanici_id boşsa), 
+// bu sayfaya erişimi engelliyor ve doğrudan login sayfasına yönlendiriyoruz.
 if (!isset($_SESSION['kullanici_id'])) {
     header("Location: login.php");
     exit();
 }
 
-// Veritabanından en güncel bilgileri çekiyoruz (Yedek olarak Session'dan da besleniyoruz)
+// PDO ile Güvenli Veri Çekme: Sadece $_SESSION'daki verilere güvenmek yerine, 
+// kullanıcının en güncel verilerini (email, username, avatar) veritabanından çekiyoruz.
 $sorgu = $db->prepare("SELECT email, username, ad_soyad, avatar_url FROM users WHERE id = ?");
 $sorgu->execute([$_SESSION['kullanici_id']]);
 $user = $sorgu->fetch(PDO::FETCH_ASSOC);
@@ -19,6 +22,7 @@ $pageTitle = 'Hesap Ayarları';
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+    <!-- Ortak kütüphaneleri (Bootstrap, FontAwesome) barındıran üst dosyamızı dahil ediyoruz. -->
     <?php include 'header_include.php'; ?>
     <title><?= $pageTitle ?> - Postify</title>
 
@@ -26,10 +30,14 @@ $pageTitle = 'Hesap Ayarları';
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
         
         body { background-color: #fff; }
+        
+        /* Satır hizalamaları için esnek Flexbox yapısı kullanıyoruz. */
         .settings-row {
             display: flex; justify-content: space-between; align-items: flex-start;
             padding-bottom: 2rem; margin-bottom: 2rem; border-bottom: 1px solid #f8fafc;
         }
+        
+        /* Modern Input Tasarımı: Tıklandığında (focus) çirkin tarayıcı çerçevesi yerine özel bir gölge (box-shadow) veriyoruz. */
         .clean-input {
             width: 100%; background-color: #f8fafc; border: none;
             border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-size: 0.875rem;
@@ -42,12 +50,15 @@ $pageTitle = 'Hesap Ayarları';
         .btn-save { color: #0d9488; font-weight: bold; margin-right: 0.75rem; }
         .btn-cancel { color: #94a3b8; }
         
+        /* Avatar Değiştirme Alanı: Kullanıcı resmin üzerine gelince transform: scale ile hafifçe büyütüyoruz. */
         .avatar-wrapper {
             position: relative; width: 45px; height: 45px; cursor: pointer;
             transition: transform 0.2s;
         }
         .avatar-wrapper:hover { transform: scale(1.1); }
         .avatar-main { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid #f1f5f9; }
+        
+        /* Avatarın köşesindeki minik kamera ikonunun CSS ile tam köşeye oturtulması */
         .camera-icon {
             position: absolute; bottom: -2px; right: -2px;
             background: #0d9488; color: white; width: 18px; height: 18px;
@@ -74,12 +85,17 @@ $pageTitle = 'Hesap Ayarları';
                         <h1 class="fw-bold text-dark mb-5 pb-3" style="font-size: 3.5rem; letter-spacing: -2px; font-family: 'Instrument Serif', serif; font-style: italic;">Settings</h1>
 
                         <div>
+                            <!-- EMAİL GÜNCELLEME ALANI -->
                             <div class="settings-row">
                                 <div class="flex-grow-1">
                                     <p class="fw-bold text-dark mb-1" style="font-size: 0.875rem;">Email address</p>
+                                    
+                                    <!-- Başlangıçta sadece metin görünür. htmlspecialchars ile XSS açıklarını kapatıyoruz -->
                                     <div id="email-display">
                                         <p class="text-secondary mb-0" style="font-size: 0.875rem;" id="email-text"><?= htmlspecialchars($user['email']) ?></p>
                                     </div>
+                                    
+                                    <!-- Kullanıcı Edit'e basınca DOM ile d-none sınıfı silinip bu input açılacak -->
                                     <div id="email-input-container" class="d-none mt-2">
                                         <input type="email" id="email-input" class="clean-input" value="<?= htmlspecialchars($user['email']) ?>">
                                     </div>
@@ -93,6 +109,7 @@ $pageTitle = 'Hesap Ayarları';
                                 </div>
                             </div>
 
+                            <!-- KULLANICI ADI GÜNCELLEME ALANI -->
                             <div class="settings-row">
                                 <div class="flex-grow-1">
                                     <p class="fw-bold text-dark mb-1" style="font-size: 0.875rem;">Username and subdomain</p>
@@ -115,6 +132,7 @@ $pageTitle = 'Hesap Ayarları';
                                 </div>
                             </div>
 
+                            <!-- PROFİL RESMİ (AVATAR) GÜNCELLEME ALANI -->
                             <div class="settings-row align-items-center">
                                 <div>
                                     <p class="fw-bold text-dark mb-1" style="font-size: 0.875rem;">Profile information</p>
@@ -123,17 +141,22 @@ $pageTitle = 'Hesap Ayarları';
                                 <div class="d-flex align-items-center gap-3">
                                     <span class="text-secondary fw-medium small d-none d-sm-block"><?= htmlspecialchars($user['ad_soyad']) ?></span>
                                     
+                                    <!-- Resmi tıklanabilir yaptık. Tıklanınca gizli olan <input type="file"> elemanını JS ile tetikliyoruz. -->
                                     <div class="avatar-wrapper" onclick="document.getElementById('avatar-upload').click();">
                                         <?php 
+                                            // Avatar yoksa API'den otomatik harf logolu avatar üretiyoruz.
                                             $avatar = !empty($user['avatar_url']) ? $user['avatar_url'] : "https://ui-avatars.com/api/?name=".urlencode($user['ad_soyad'])."&background=0d9488&color=fff";
                                         ?>
                                         <img src="<?= $avatar ?>" class="avatar-main" id="current-avatar">
                                         <div class="camera-icon"><i class="fa-solid fa-camera"></i></div>
                                     </div>
+                                    
+                                    <!-- Dosya seçildiği an (onchange) AJAX ile resmi yollayacak fonksiyon tetikleniyor. -->
                                     <input type="file" id="avatar-upload" class="d-none" accept="image/*" onchange="uploadAvatar(this)">
                                 </div>
                             </div>
 
+                            <!-- HESAP SİLME / DONDURMA -->
                             <div class="pt-2">
                                 <div class="pt-4 border-top">
                                     <button onclick="accountAction('deactivate')" class="action-btn text-teal fw-bold d-block mb-3 p-0" style="font-size: 0.875rem;">Deactivate account</button>
@@ -154,34 +177,46 @@ $pageTitle = 'Hesap Ayarları';
         </div>
     </div>
 
+    <!-- AJAX ve DOM MANİPÜLASYONU -->
     <script>
-        let currentData = {
+        // İptal butonuna basıldığında verinin eski haline dönmesi için, sayfa yüklenirken verileri JS Nesnesine (Object) yedekliyoruz.
+        var currentData = {
             email: "<?= $user['email'] ?>",
             username: "<?= $user['username'] ?>"
         };
 
+        // DOM Manipülasyonu: Metinlerin gizlenip Input kutularının (form) açılmasını sağlayan arayüz fonksiyonu.
         function toggleEdit(field, isEditing) {
             document.getElementById(field + '-display').classList.toggle('d-none', isEditing);
             document.getElementById(field + '-input-container').classList.toggle('d-none', !isEditing);
             document.getElementById(field + '-edit-btn').classList.toggle('d-none', isEditing);
             document.getElementById(field + '-action-btns').classList.toggle('d-none', !isEditing);
-            if(isEditing) document.getElementById(field + '-input').focus();
+            
+            // Kullanıcı UX (Deneyimi) için input açılır açılmaz imleci içine odaklıyoruz (focus).
+            if(isEditing) {
+                document.getElementById(field + '-input').focus();
+            }
         }
 
-        // BİLGİLERİ KAYDET (Email/Username)
+        // BİLGİLERİ KAYDET (Email/Username Güncellemesi)
         function saveField(field) {
-            const newValue = document.getElementById(field + '-input').value;
+            var newValue = document.getElementById(field + '-input').value;
             
+            // Sayfayı yenilemeden (Asenkron) form verisi yollamak için fetch kullanıyoruz (Ders 04).
             fetch('api/profil_guncelle.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: `field=${field}&value=${encodeURIComponent(newValue)}`
+                body: "field=" + field + "&value=" + encodeURIComponent(newValue)
             })
-            .then(res => res.json())
-            .then(data => {
+            .then(function(res) {
+                return res.json();
+            })
+            .then(function(data) {
                 if(data.status === 'success') {
+                    // Veri başarıyla güncellendiyse DOM üzerindeki metni değiştirip formları kapatıyoruz.
                     currentData[field] = newValue;
-                    document.getElementById(field + '-text').innerText = (field === 'username' ? '@' : '') + newValue;
+                    var prefix = (field === 'username') ? '@' : '';
+                    document.getElementById(field + '-text').innerText = prefix + newValue;
                     toggleEdit(field, false);
                 } else {
                     alert('Hata: ' + data.message);
@@ -189,23 +224,33 @@ $pageTitle = 'Hesap Ayarları';
             });
         }
 
-        // PROFİL RESMİ YÜKLEME
+        // PROFİL RESMİ YÜKLEME (AJAX + FormData Kullanımı)
         function uploadAvatar(input) {
+            // Kullanıcı iptal demeyip gerçekten bir dosya seçtiyse...
             if (input.files && input.files[0]) {
-                let formData = new FormData();
+                
+                // Normalde formlarla dosya yollanır. Biz AJAX ile dosya yollayacağımız için JS'in yerleşik 'FormData' nesnesini oluşturuyoruz.
+                var formData = new FormData();
                 formData.append('avatar', input.files[0]);
 
+                // Fetch API ile resmi POST metoduyla doğrudan sunucuya aktarıyoruz.
                 fetch('api/avatar_yukle.php', {
                     method: 'POST',
-                    body: formData
+                    body: formData // Headers kısmına multipart/form-data yazmamıza gerek yok, FormData bunu otomatik halleder.
                 })
-                .then(res => res.json())
-                .then(data => {
+                .then(function(res) {
+                    return res.json();
+                })
+                .then(function(data) {
                     if(data.status === 'success') {
+                        // Resim başarıyla yüklenirse sayfa yenilenmeden kullanıcının profil resmini DOM üzerinden anında güncelliyoruz.
                         document.getElementById('current-avatar').src = data.new_url;
-                        // Üst bardaki resmi de hemen güncelle
-                        const topbarAvatar = document.querySelector('header img');
-                        if(topbarAvatar) topbarAvatar.src = data.new_url;
+                        
+                        // Menü (Topbar) üzerindeki minik resmi de yakalayıp değiştiriyoruz ki UX kusursuz olsun.
+                        var topbarAvatar = document.querySelector('header img');
+                        if(topbarAvatar) {
+                            topbarAvatar.src = data.new_url;
+                        }
                     } else {
                         alert('Resim yüklenemedi: ' + data.message);
                     }
@@ -213,20 +258,29 @@ $pageTitle = 'Hesap Ayarları';
             }
         }
 
-        // HESAP İŞLEMLERİ
+        // HESAP İŞLEMLERİ (Silme veya Dondurma)
         function accountAction(type) {
-            let msg = type === 'delete' ? 'DİKKAT! Hesabınızı kalıcı olarak silmek üzeresiniz. Bu işlem geri alınamaz. Onaylıyor musunuz?' : 'Hesabınızı dondurmak istediğinize emin misiniz?';
+            // Silme gibi kritik bir işlem öncesi derste gördüğümüz confirm() metodu ile JavaScript tabanlı teyit alıyoruz.
+            var msg = "";
+            if (type === 'delete') {
+                msg = 'DİKKAT! Hesabınızı kalıcı olarak silmek üzeresiniz. Bu işlem geri alınamaz. Onaylıyor musunuz?';
+            } else {
+                msg = 'Hesabınızı dondurmak istediğinize emin misiniz?';
+            }
+            
             if(confirm(msg)) {
                 fetch('api/hesap_islemleri.php', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: `action=${type}`
+                    body: "action=" + type
                 })
-                .then(res => res.json())
-                .then(data => {
+                .then(function(res) {
+                    return res.json();
+                })
+                .then(function(data) {
                     if(data.status === 'success') {
                         alert('İşlem başarılı. Hoşça kalın!');
-                        window.location.href = 'logout.php';
+                        window.location.href = 'logout.php'; // İşlem başarılıysa oturumu kapatma sayfasına yönlendiriyoruz.
                     }
                 });
             }
