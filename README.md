@@ -61,5 +61,7 @@ Projeyi kendi yerel sunucunuzda (Localhost) çalıştırmak için aşağıdaki a
 ├── detay.php              # Dinamik yazı okuma ve sürüm geçmişi sayfası
 ├── yazilarim.php          # Kullanıcıya özel içerik yönetim paneli
 └── ...
-  
+
+
+Bu proje Elif ÇAĞLAYAN VE Emirhan CENGİZ tarafından geliştirilmiştir
   
