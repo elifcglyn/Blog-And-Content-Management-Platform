@@ -89,7 +89,7 @@ $pageTitle = 'Yazıyı Düzenle';
                     for(i = 0; i < yazilar.length; i++) {
                         if (parseInt(yazilar[i].id) === parseInt(yaziId)) {
                             yazi = yazilar[i];
-                            break; // Bulduğumuzda döngüyü kırıp performansı koruyoruz (Break).
+                            break; // Bulduğumuzda döngüyü kırıp performansı koruyoruz (Break).parseInt veritabanı uyuşmazlığını önlemek için kullanıyoruz.
                         }
                     }
 
